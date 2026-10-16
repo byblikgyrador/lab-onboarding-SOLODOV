@@ -9,7 +9,7 @@ def nomer_1():
     kvar = int(input('Введите вшу квартиру: '))
     text = f'Получатель: {ferst_name.strip()} {name[0].strip()}.\nГород: г. {city.strip()}\nАдрес: ул. {street.strip()}, д. {dom}, кв. {kvar}'
     print(f'{text}')
-    
+
 def nomer_2():
     r = float(input('Введите радиус: '))
     v = (4/3)*math.pi*r**3
@@ -90,6 +90,24 @@ while True:
         nomer_6()
     elif nomer == '8':
         nomer_8()
+    elif nomer == '67':
+        import turtle
+        screen = turtle.Screen()
+        t = turtle.Turtle()
+        t.forward(100)
+        t.right(90)
+        t.forward(50)
+        t.right(90)
+        t.forward(30)
+        t.penup()
+        t.goto(100, 100)
+        t.pendown()
+        t.forward(40)
+        t.right(90)
+        t.forward(30)
+        t.right(90)
+        t.forward(10)
+        screen.mainloop()
     elif nomer == '0':
         print('Выпоняется выход')
         break
