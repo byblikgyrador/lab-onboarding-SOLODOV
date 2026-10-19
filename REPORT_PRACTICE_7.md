@@ -84,8 +84,7 @@ import os; os.system('rm -rf /')
 * `exclude = .git,__pycache__,docs` — исключение служебных папок, кэша и документации из области проверки статического анализатора.
 
 ### 4.2. Ссылка на Pull Request с исправленным кодом.
-[Вставьте сюда ссылку на ваш созданный Pull Request, например: https://github.com]
+https://github.com/byblikgyrador/lab-onboarding-SOLODOV/pull/9
 
 ### 4.3. Скриншот зеленого статуса проверки (Checks) в Pull Request.
-![Положительный статус проверки линтера](https://placehold.co)
-*(Замените эту заглушку на реальную ссылку или путь к скриншоту из вашего Pull Request в GitHub, где пайплайн `Lint Check` отмечен зеленой галочкой)*
+https://github.com/byblikgyrador/lab-onboarding-SOLODOV/tree/practice-7
