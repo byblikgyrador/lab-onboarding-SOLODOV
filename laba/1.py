@@ -40,11 +40,25 @@ def nomer_7():
     for i in range(len(a) - 1, -1, -1):
         print(a[i], end='')
 
+def nomer_8():
+    n=int(input())
+    if n >= 2:
+        for i in range(2, n+1, 2):
+            if n%2==0:
+                print(i, end=' ')
+
+def nomer_9():
+    count = int(input())
+    i = 0
+    total = 0
+    while i < count:
+        n = int(input())
+        total += n
+        i += 1
+    print("Количество оценок:", count)
+    print("Среднее значение:", total / count)
 
 
 
 
-
-
-
-nomer_7()
+nomer_9()
