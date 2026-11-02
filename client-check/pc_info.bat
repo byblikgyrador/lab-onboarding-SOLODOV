@@ -1,88 +1,175 @@
 @echo off
+setlocal enabledelayedexpansion
 chcp 65001 > nul
-REM Практическая работа. Диагностика клиентского компьютера
-REM Автор: Выполняющий студент
-REM Результат: Сбор сведений о системе в файл %~dp0pc_report.txt
-REM Путь к итоговому файлу отчета в той же папке, где лежит скрипт
 set "REPORT_FILE=%~dp0pc_report.txt"
-REM Очищаем старый отчет, если он существовал, и пишем общий заголовок
-echo         ДИАГНОСТИКА КОМПЬЮТЕРА           >> "%REPORT_FILE%"
-echo Дата и время проверки: %DATE% %TIME%     >> "%REPORT_FILE%"
-REM Вывод стартового заголовка в консоль для пользователя
-echo         ДИАГНОСТИКА КОМПЬЮТЕРА           
-echo.
-REM REM СВЕДЕНИЯ ОБ ОПЕРАЦИОННОЙ СИСТЕМЕ
-echo [Операционная система] > "%~dp0os_temp.txt"
-for /f "tokens=2 delims==" %%i in ('wmic os get Caption /value 2^>nul') do if not "%%i"=="" echo Название: %%i >> "%~dp0os_temp.txt"
-for /f "tokens=2 delims==" %%i in ('wmic os get Version /value 2^>nul') do if not "%%i"=="" echo Версия: %%i >> "%~dp0os_temp.txt"
-REM Выводим ОС на экран и в отчет
-type "%~dp0os_temp.txt"
-type "%~dp0os_temp.txt" >> "%REPORT_FILE%"
-del "%~dp0os_temp.txt"
-echo.
-REM REM СВЕДЕНИЯ О ПРОЦЕССОРЕ
-echo [Процессор] > "%~dp0cpu_temp.txt"
-for /f "tokens=2 delims==" %%i in ('wmic cpu get Name /value 2^>nul') do if not "%%i"=="" echo Модель: %%i >> "%~dp0cpu_temp.txt"
-REM Выводим процессор на экран и в отчет
-type "%~dp0cpu_temp.txt"
-type "%~dp0cpu_temp.txt" >> "%REPORT_FILE%"
-del "%~dp0cpu_temp.txt"
-echo.
-REM REM СВЕДЕНИЯ ОБ ОПЕРАТИВНОЙ ПАМЯТИ
+set "TEMP_APPS=%TEMP%\apps_list.txt"
+set "SORTED_APPS=%TEMP%\apps_list_sorted.txt"
+:: Очищаем старые файлы перед началом работы
+if exist "%REPORT_FILE%" del /q "%REPORT_FILE%"
+if exist "%TEMP_APPS%" del /q "%TEMP_APPS%"
+if exist "%SORTED_APPS%" del /q "%SORTED_APPS%"
+call :log "ДИАГНОСТИКА И АУДИТ КОМПЬЮТЕРА"
+call :log ""
+call :log "Дата и время проверки: %DATE% %TIME%"
+call :log "Имя компьютера: %COMPUTERNAME%"
+call :log "Имя пользователя: %USERNAME%"
+call :log ""
+call :log "[Операционная система]"
+set "os_name="
+set "os_version="
+for /f "tokens=2 delims==" %%i in ('wmic os get Caption /value 2^>nul') do if not "%%i"==" " set "os_name=%%i"
+for /f "tokens=2 delims==" %%i in ('wmic os get Version /value 2^>nul') do if not "%%i"==" " set "os_version=%%i"
+if not defined os_name (
+    for /f "usebackq tokens=*" %%A in (`powershell -NoProfile -Command "(Get-CimInstance Win32_OperatingSystem).Caption" 2^>nul`) do set "os_name=%%A"
+)
+if not defined os_version (
+    for /f "usebackq tokens=*" %%A in (`powershell -NoProfile -Command "(Get-CimInstance Win32_OperatingSystem).Version" 2^>nul`) do set "os_version=%%A"
+)
+if defined os_name ( call :log "Название: %os_name%" ) else ( call :log "Название: [ОШИБКА] Не удалось получить данные" )
+if defined os_version ( call :log "Версия:   %os_version%" ) else ( call :log "Версия:   [ОШИБКА] Не удалось получить данные" )
+call :log ""
+call :log "[Процессор]"
+set "cpu_name="
+for /f "tokens=2 delims==" %%i in ('wmic cpu get Name /value 2^>nul') do if not "%%i"==" " set "cpu_name=%%i"
+if not defined cpu_name (
+    for /f "usebackq tokens=*" %%A in (`powershell -NoProfile -Command "(Get-CimInstance Win32_Processor).Name" 2^>nul`) do set "cpu_name=%%A"
+)
+if defined cpu_name ( call :log "Модель:   %cpu_name%" ) else ( call :log "Модель:   [ОШИБКА] Не удалось получить данные" )
+call :log ""
+call :log "[Оперативная память]"
+set "total_mem="
+set "free_mem="
 for /f "tokens=2 delims==" %%i in ('wmic os get TotalVisibleMemorySize /value 2^>nul') do set "total_mem=%%i"
 for /f "tokens=2 delims==" %%i in ('wmic os get FreePhysicalMemory /value 2^>nul') do set "free_mem=%%i"
-REM Перевод из КБ в ГБ (деление на 1048576)
-set /a total_gb=%total_mem% / 1048576
-set /a free_gb=%free_mem% / 1048576
-echo [Оперативная память] > "%~dp0ram_temp.txt"
-echo Всего памяти: %total_gb% ГБ >> "%~dp0ram_temp.txt"
-echo Свободно памяти: %free_gb% ГБ >> "%~dp0ram_temp.txt"
-REM Выводим ОЗУ на экран и в отчет
-type "%~dp0ram_temp.txt"
-type "%~dp0ram_temp.txt" >> "%REPORT_FILE%"
-del "%~dp0ram_temp.txt"
-echo.
-REM REM СВОБОДНОЕ МЕСТО НА ДИСКЕ
+if defined total_mem (
+    set /a total_gb=%total_mem% / 1048576
+    call :log "Всего памяти:     !total_gb! ГБ"
+) else (
+    for /f "usebackq" %%A in (`powershell -NoProfile -Command "[math]::round((Get-CimInstance Win32_OperatingSystem).TotalVisibleMemorySize / 1MB)" 2^>nul`) do set "total_gb=%%A"
+    if defined total_gb ( call :log "Всего памяти:     !total_gb! ГБ" ) else ( call :log "Всего памяти: [ОШИБКА] Ошибка расчета" )
+)
+if defined free_mem (
+    set /a free_gb=%free_mem% / 1048576
+    call :log "Свободно памяти:  !free_gb! ГБ"
+) else (
+    for /f "usebackq" %%A in (`powershell -NoProfile -Command "[math]::round((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory / 1MB)" 2^>nul`) do set "free_gb=%%A"
+    if defined free_gb ( call :log "Свободно памяти:  !free_gb! ГБ" ) else ( call :log "Свободно памяти:  [ОШИБКА] Ошибка расчета" )
+)
+call :log ""
+call :log "[Диск C]"
+set "disk_size="
+set "disk_free="
 for /f "tokens=2 delims==" %%i in ('wmic logicaldisk where DeviceID^="C:" get Size /value 2^>nul') do set "disk_size=%%i"
 for /f "tokens=2 delims==" %%i in ('wmic logicaldisk where DeviceID^="C:" get FreeSpace /value 2^>nul') do set "disk_free=%%i"
-REM Так как числа в байтах слишком большие для 32-битной арифметики set /a (лимит 2 млрд),
-REM мы сначала программно отсекаем последние 6 символов (делим на 1 000 000), а затем переводим в ГБ
-set "disk_size_short=%disk_size:~0,-6%"
-set "disk_free_short=%disk_free:~0,-6%"
-set /a disk_size_gb=%disk_size_short% / 1073
-set /a disk_free_gb=%disk_free_short% / 1073
-echo [Диск C] > "%~dp0disk_temp.txt"
-echo Общий размер: %disk_size_gb% ГБ >> "%~dp0disk_temp.txt"
-echo Свободно места: %disk_free_gb% ГБ >> "%~dp0disk_temp.txt"
-REM Выводим диск на экран и в отчет
-type "%~dp0disk_temp.txt"
-type "%~dp0disk_temp.txt" >> "%REPORT_FILE%"
-del "%~dp0disk_temp.txt"
-echo.
-REM REM СПИСОК УСТАНОВЛЕННЫХ ПРОГРАММ (ЧЕРЕЗ РЕЕСТР — БЫСТРЫЙ ВАРИАНТ)
-echo [Установленные программы]
-echo [Установленные программы] >> "%REPORT_FILE%"
-REM Создаем временный файл для чистки названий от лишних пробелов findstr
-set "PROG_TEMP=%~dp0prog_temp.txt"
-if exist "%PROG_TEMP%" del "%PROG_TEMP%"
-REM Опрашиваем ветки реестра 64-бит и 32-бит
-for /f "tokens=2*" %%a in ('reg query "HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall" /s /f DisplayName 2^>nul ^| findstr "DisplayName"') do echo %%b >> "%PROG_TEMP%"
-for /f "tokens=2*" %%a in ('reg query "HKLM\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall" /s /f DisplayName 2^>nul ^| findstr "DisplayName"') do echo %%b >> "%PROG_TEMP%"
-REM Сортируем список программ по алфавиту, убираем дубли, выводим на экран и в отчет
-if exist "%PROG_TEMP%" (
-    sort "%PROG_TEMP%" > "%~dp0sorted_temp.txt"
-    type "%~dp0sorted_temp.txt"
-    type "%~dp0sorted_temp.txt" >> "%REPORT_FILE%"
-    del "%PROG_TEMP%"
-    del "%~dp0sorted_temp.txt"
+if not defined disk_size (
+    for /f "usebackq" %%A in (`powershell -NoProfile -Command "[math]::round((Get-CimInstance Win32_LogicalDisk -Filter ""DeviceID='C:'"").Size / 1GB)" 2^>nul`) do set "disk_size_gb=%%A"
 ) else (
-    echo Программ не найдено или доступ ограничен.
-    echo Программ не найдено или доступ ограничен. >> "%REPORT_FILE%"
+    for /f "usebackq" %%A in (`powershell -NoProfile -Command "[math]::round(%disk_size% / 1GB)" 2^>nul`) do set "disk_size_gb=%%A"
 )
-echo.
-echo Конец отчета. >> "%REPORT_FILE%"
-REM REM ЗАВЕРШЕНИЕ РАБОТЫ
+if not defined disk_free (
+    for /f "usebackq" %%A in (`powershell -NoProfile -Command "[math]::round((Get-CimInstance Win32_LogicalDisk -Filter ""DeviceID='C:'"").FreeSpace / 1GB)" 2^>nul`) do set "disk_free_gb=%%A"
+) else (
+    for /f "usebackq" %%A in (`powershell -NoProfile -Command "[math]::round(%disk_free% / 1GB)" 2^>nul`) do set "disk_free_gb=%%A"
+)
+if defined disk_size_gb ( call :log "Общий размер:     %disk_size_gb% ГБ" ) else ( call :log "Общий размер:     [ОШИБКА] Не удалось рассчитать" )
+if defined disk_free_gb ( call :log "Свободно места:   %disk_free_gb% ГБ" ) else ( call :log "Свободно места:   [ОШИБКА] Не удалось рассчитать" )
+call :log ""
+for /f "tokens=2*" %%a in ('reg query "HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall" /s /f DisplayName 2^>nul ^| findstr "DisplayName"') do echo %%b >> "%TEMP_APPS%"
+for /f "tokens=2*" %%a in ('reg query "HKLM\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall" /s /f DisplayName 2^>nul ^| findstr "DisplayName"') do echo %%b >> "%TEMP_APPS%"
+if exist "%TEMP_APPS%" (
+    powershell -NoProfile -Command "Get-Content '%TEMP_APPS%' | Select-Object -Unique | Sort-Object | Out-File -FilePath '%SORTED_APPS%' -Encoding utf8"
+)
+call :log "[Рекомендации по недостающему ПО]"
+if not exist "%SORTED_APPS%" (
+    call :log "  [КРИТИЧЕСКИЙ СБОЙ] Не удалось проанализировать реестр программ."
+) else (
+    set "found_app="
+    for /f "usebackq delims=" %%A in (`findstr /I /C:"Office" /C:"LibreOffice" /C:"OpenOffice" /C:"МойОфис" "%SORTED_APPS%" 2^>nul`) do set "found_app=%%A"
+    if defined found_app (
+        call :log "  [ОК] Офисный пакет: Обнаружен (!found_app!)"
+    ) else (
+        call :log "  [ВНИМАНИЕ] Не обнаружен офисный пакет. Для базовой работы с документами рекомендуется установить LibreOffice или МойОфис."
+    )
+    set "found_app="
+    for /f "usebackq delims=" %%A in (`findstr /I /C:"7-Zip" /C:"WinRAR" /C:"WinZip" "%SORTED_APPS%" 2^>nul`) do set "found_app=%%A"
+    if defined found_app (
+        call :log "  [ОК] Архиватор: Обнаружен (!found_app!)"
+    ) else (
+        call :log "  [ВНИМАНИЕ] Не обнаружен архиватор. Для работы с вложениями в почте рекомендуется установить 7-Zip или WinRAR."
+    )
+    set "found_app="
+    for /f "usebackq delims=" %%A in (`findstr /I /C:"Acrobat" /C:"Foxit" /C:"SumatraPDF" "%SORTED_APPS%" 2^>nul`) do set "found_app=%%A"
+    if defined found_app (
+        call :log "  [ОК] Просмотр PDF: Обнаружен (!found_app!)"
+    ) else (
+        call :log "  [ВНИМАНИЕ] Не обнаружен PDF-ридер. Для работы со счетами и инструкциями рекомендуется установить Foxit или SumatraPDF."
+    )
+    set "found_app="
+    for /f "usebackq delims=" %%A in (`findstr /I /C:"Chrome" /C:"Firefox" /C:"Yandex" "%SORTED_APPS%" 2^>nul`) do set "found_app=%%A"
+    if defined found_app (
+        call :log "  [ОК] Дополнительный браузер: Обнаружен (!found_app!)"
+    ) else (
+        call :log "  [ИНФО] Сторонние браузеры не найдены. Компонент системы Microsoft Edge используется по умолчанию."
+    )
+    set "found_app="
+    for /f "usebackq delims=" %%A in (`findstr /I /C:"Kaspersky" /C:"ESET" /C:"Dr.Web" /C:"Defender" "%SORTED_APPS%" 2^>nul`) do set "found_app=%%A"
+    if defined found_app (
+        call :log "  [ОК] Антивирус: Обнаружен или контролируется системой (!found_app!)"
+    ) else (
+        call :log "  [ВНИМАНИЕ] Сторонний антивирус не зарегистрирован. Убедитесь, что встроенная защита Windows активна."
+    )
+)
+call :log ""
+call :log "[Рекомендации по излишнему ПО]"
+if exist "%SORTED_APPS%" (
+    set "has_excess=0"
+    set "group_found=0"
+    for /f "usebackq delims=" %%A in (`findstr /I /C:"Steam" /C:"Epic Games" /C:"GOG" /C:"Origin" /C:"Ubisoft" /C:"Battle.net" /C:"Riot" /C:"game" /C:"gaming" "%SORTED_APPS%" 2^>nul`) do (
+        if !group_found!==0 (
+            call :log "  -> Обнаружено игровое ПО (не относится к базовым офисным задачам и подлежит проверке):"
+            set "group_found=1"
+            set "has_excess=1"
+        )
+        call :log "     - %%A"
+    )
+    set "group_found=0"
+    for /f "usebackq delims=" %%A in (`findstr /I /C:"torrent" /C:"uTorrent" /C:"BitTorrent" /C:"qBittorrent" /C:"Vuze" "%SORTED_APPS%" 2^>nul`) do (
+        if !group_found!==0 (
+            call :log "  -> Обнаружены файлообменные программы (Создают угрозу безопасности и трафика, рекомендуются к проверке):"
+            set "group_found=1"
+            set "has_excess=1"
+        )
+        call :log "     - %%A"
+    )
+    set "group_found=0"
+    for /f "usebackq delims=" %%A in (`findstr /I /C:"Discord" /C:"Telegram" /C:"WhatsApp" /C:"Viber" /C:"Skype" "%SORTED_APPS%" 2^>nul`) do (
+        if !group_found!==0 (
+Используйте код с осторожностью.
+call :log "  -> Обнаружены мессенджеры (Требуется верификация ИТ-отдела на соответствие регламентам связи):"
+set "group_found=1"
+set "has_excess=1"
+)
+call :log "     - %%A"
+)
+if !has_excess!==0 (
+call :log "  [ОК] Явных признаков нецелевого или излишнего ПО не обнаружено."
+)
+)
+call :log ""
+call :log "Конец отчета. Все данные успешно зафиксированы."
+if exist "%TEMP_APPS%" del /q "%TEMP_APPS%"
+if exist "%SORTED_APPS%" del /q "%SORTED_APPS%"
 echo.
 echo Отчет сохранен в файл: pc_report.txt
 echo.
 pause
+exit /b 0
+:log
+if "%~1" == "" (
+echo(
+echo(>> "%REPORT_FILE%"
+exit /b
+)
+echo %~1
+echo %~1>> "%REPORT_FILE%"
+exit /b
