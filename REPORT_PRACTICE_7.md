@@ -87,4 +87,4 @@ import os; os.system('rm -rf /')
 https://github.com/byblikgyrador/lab-onboarding-SOLODOV/pull/9
 
 ### 4.3. Скриншот зеленого статуса проверки (Checks) в Pull Request.
-https://github.com/byblikgyrador/lab-onboarding-SOLODOV/tree/practice-7
+https://github.com/byblikgyrador/lab-onboarding-SOLODOV/pull/10
